@@ -227,19 +227,29 @@
 /* Progressive disclosure. The previous rule read
    :not([data-step-panel="1"]), which meant step 1 had no hide rule at all
    and stayed on screen underneath every later step. All panels hide; app.js
-   reveals exactly one. */
-.rw-fieldset[data-step-panel] {
+   reveals exactly one.
+
+   Matched on the attribute alone, not .rw-fieldset[data-step-panel]: step 1
+   is a <div> wrapping several fieldsets, so tying these rules to the
+   fieldset class would leave that panel permanently visible. */
+[data-step-panel] {
   display: none;
 }
 
-.rw-fieldset[data-step-panel].is-visible {
+[data-step-panel].is-visible {
   display: block;
 }
 
 /* The panel is focused on each step change so screen readers announce it;
    that must not paint a focus ring, since it isn't a real control. */
-.rw-fieldset[data-step-panel]:focus {
+[data-step-panel]:focus {
   outline: none;
+}
+
+/* Inside the merged panel the stacked fieldsets would otherwise double up
+   their vertical padding at every seam. */
+.rw-panel .rw-fieldset + .rw-fieldset {
+  padding-top: 0;
 }
 
 .rw-legend {

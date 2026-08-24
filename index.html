@@ -50,25 +50,13 @@
         <li class="rw-steps__item is-active" data-step="1" aria-current="step">
           <button class="rw-steps__btn" type="button" disabled>
             <span class="rw-steps__num">01</span
-            ><span class="rw-steps__label" data-i18n="step_1">Date &amp; time</span>
+            ><span class="rw-steps__label" data-i18n="step_reservation">Your reservation</span>
           </button>
         </li>
         <li class="rw-steps__item" data-step="2">
           <button class="rw-steps__btn" type="button" disabled>
             <span class="rw-steps__num">02</span
-            ><span class="rw-steps__label" data-i18n="step_2">Party size</span>
-          </button>
-        </li>
-        <li class="rw-steps__item" data-step="3">
-          <button class="rw-steps__btn" type="button" disabled>
-            <span class="rw-steps__num">03</span
-            ><span class="rw-steps__label" data-i18n="step_3">Your details</span>
-          </button>
-        </li>
-        <li class="rw-steps__item" data-step="4">
-          <button class="rw-steps__btn" type="button" disabled>
-            <span class="rw-steps__num">04</span
-            ><span class="rw-steps__label" data-i18n="step_4">Secure hold</span>
+            ><span class="rw-steps__label" data-i18n="step_payment">Secure hold</span>
           </button>
         </li>
       </ol>
@@ -76,8 +64,12 @@
       <!-- novalidate: the widget shows its own translated inline errors
            instead of the browser's untranslatable bubbles. -->
       <form class="rw-form" id="rw-reservation-form" novalidate>
-        <!-- STEP 1 — DATE & TIME -->
-        <fieldset class="rw-fieldset is-visible" data-step-panel="1">
+        <!-- STEP 1 — everything the guest types: date, time, party, details.
+             The three <fieldset>s stay separate so each keeps its own legend
+             and grouping semantics; the wrapper is what the step machine
+             shows and hides. -->
+        <div class="rw-panel is-visible" data-step-panel="1">
+        <fieldset class="rw-fieldset">
           <legend class="rw-legend" data-i18n="legend_1">Date &amp; time</legend>
 
           <div class="rw-field">
@@ -109,8 +101,8 @@
           </div>
         </fieldset>
 
-        <!-- STEP 2 — PARTY SIZE -->
-        <fieldset class="rw-fieldset" data-step-panel="2" hidden>
+        <!-- PARTY SIZE -->
+        <fieldset class="rw-fieldset">
           <legend class="rw-legend" data-i18n="legend_2">Party size</legend>
 
           <div
@@ -147,8 +139,8 @@
           </p>
         </fieldset>
 
-        <!-- STEP 3 — GUEST DETAILS -->
-        <fieldset class="rw-fieldset" data-step-panel="3" hidden>
+        <!-- GUEST DETAILS -->
+        <fieldset class="rw-fieldset">
           <legend class="rw-legend" data-i18n="legend_3">Your details</legend>
 
           <div class="rw-field">
@@ -220,9 +212,10 @@
             />
           </div>
         </fieldset>
+        </div>
 
-        <!-- STEP 4 — NO-SHOW FEE + PAYMENT METHOD -->
-        <fieldset class="rw-fieldset" data-step-panel="4" hidden>
+        <!-- STEP 2 — NO-SHOW FEE + PAYMENT METHOD -->
+        <fieldset class="rw-fieldset" data-step-panel="2" hidden>
           <legend class="rw-legend" data-i18n="legend_4">Secure your table</legend>
 
           <div class="rw-notice">

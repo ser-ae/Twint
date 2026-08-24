@@ -58,6 +58,29 @@ function setVal(w, el, value) {
   el.dispatchEvent(new w.Event("change", { bubbles: true }));
 }
 
+/** Step 1 holds date, time, party size and guest details on one page, so all
+ *  of them must be valid before Continue will advance to the payment step. */
+async function fillDetails(w, doc, opts = {}) {
+  const date = opts.date || iso(new Date(Date.now() + 5 * 864e5));
+  setVal(w, doc.querySelector("#rw-date"), date);
+  await sleep(80);
+  const time = doc.querySelector("#rw-time");
+  if (opts.time) time.value = opts.time;
+  else if (time.options.length > 1) time.value = time.options[1].value;
+  setVal(w, doc.querySelector("#rw-name"), opts.name || "Anna Muster");
+  setVal(w, doc.querySelector("#rw-email"), opts.email || "anna@example.ch");
+  setVal(w, doc.querySelector("#rw-phone"), opts.phone || "+41 79 123 45 67");
+  return date;
+}
+
+/** Fill step 1 and cross into the payment step. */
+async function advanceToPayment(w, doc, opts) {
+  const date = await fillDetails(w, doc, opts);
+  doc.querySelector('[data-nav="next"]').click();
+  await sleep(30);
+  return date;
+}
+
 (async () => {
   console.log("\n=== 1. Boot + progressive disclosure ===");
   {
@@ -70,17 +93,24 @@ function setVal(w, el, value) {
       doc.querySelector('[data-step-panel="1"]').classList.contains("is-visible")
     );
 
-    // Advance to step 2 and confirm step 1 really goes away (the old bug).
-    const date = doc.querySelector("#rw-date");
-    setVal(w, date, iso(new Date(Date.now() + 3 * 864e5)));
-    await sleep(60);
-    const time = doc.querySelector("#rw-time");
-    if (time.options.length > 1) time.value = time.options[1].value;
-    doc.querySelector('[data-nav="next"]').click();
-    await sleep(30);
+    // The whole booking is entered on one page now.
+    ok("there are exactly two steps", doc.querySelectorAll("[data-step-panel]").length === 2);
+    ok(
+      "date, time, party and details all sit on step 1",
+      ["#rw-date", "#rw-time", "#rw-party", "#rw-name", "#rw-email", "#rw-phone"].every((s) =>
+        doc.querySelector('[data-step-panel="1"]').querySelector(s)
+      )
+    );
+    ok(
+      "payment method sits on step 2",
+      !!doc.querySelector('[data-step-panel="2"]').querySelector('input[name="payment_method"]')
+    );
+
+    // One Continue press takes the guest to payment.
+    await advanceToPayment(w, doc);
     const vis = visiblePanels(doc);
     ok("after Continue, still exactly one panel visible", vis.length === 1, "got " + vis.length);
-    ok("that panel is step 2", vis[0]?.dataset.stepPanel === "2");
+    ok("one press reaches the payment step", vis[0]?.dataset.stepPanel === "2");
     ok(
       "step 1 no longer has is-visible",
       !doc.querySelector('[data-step-panel="1"]').classList.contains("is-visible")
@@ -99,8 +129,8 @@ function setVal(w, el, value) {
       doc.querySelector('.rw-steps__item[data-step="1"] .rw-steps__btn').disabled === false
     );
     ok(
-      "future step 4 stays disabled",
-      doc.querySelector('.rw-steps__item[data-step="4"] .rw-steps__btn').disabled === true
+      "the payment step is the last one, so the button confirms",
+      doc.querySelector('[data-nav="next"]').getAttribute("data-final") === "true"
     );
   }
 
@@ -214,17 +244,34 @@ function setVal(w, el, value) {
       return Promise.reject(new TypeError("offline"));
     };
     const { w, doc } = await makeWidget({ fetchImpl });
+    const enter = () =>
+      doc
+        .querySelector("#rw-reservation-form")
+        .dispatchEvent(new w.Event("submit", { bubbles: true, cancelable: true }));
+
+    // Date and time alone no longer complete step 1 — the guest details are
+    // on the same page now, so Enter must hold position and show errors.
     setVal(w, doc.querySelector("#rw-date"), iso(new Date(Date.now() + 2 * 864e5)));
     await sleep(80);
     const time = doc.querySelector("#rw-time");
     time.value = [...time.options].find((o) => o.value).value;
-    // Simulate implicit submission (pressing Enter in a text field).
-    doc.querySelector("#rw-reservation-form").dispatchEvent(
-      new w.Event("submit", { bubbles: true, cancelable: true })
-    );
+    enter();
     await sleep(40);
     ok("no reservation POSTed from step 1", posted === 0, "posted " + posted);
-    ok("Enter advances instead of submitting", visiblePanels(doc)[0].dataset.stepPanel === "2");
+    ok("Enter does not advance past missing details", visiblePanels(doc)[0].dataset.stepPanel === "1");
+    ok(
+      "the missing name is flagged inline",
+      doc.querySelector("#rw-name").getAttribute("aria-invalid") === "true"
+    );
+
+    // Once the page is complete, Enter advances rather than booking.
+    setVal(w, doc.querySelector("#rw-name"), "Anna Muster");
+    setVal(w, doc.querySelector("#rw-email"), "anna@example.ch");
+    setVal(w, doc.querySelector("#rw-phone"), "+41 79 123 45 67");
+    enter();
+    await sleep(40);
+    ok("Enter advances to payment once step 1 is complete", visiblePanels(doc)[0].dataset.stepPanel === "2");
+    ok("still no reservation POSTed", posted === 0, "posted " + posted);
   }
 
   console.log("\n=== 6. Full booking — confirmed ===");
@@ -272,21 +319,12 @@ function setVal(w, el, value) {
       doc.querySelector("#rw-fee-amount").textContent
     );
 
-    const target = iso(new Date(Date.now() + 5 * 864e5));
-    setVal(w, doc.querySelector("#rw-date"), target);
-    await sleep(80);
-    doc.querySelector("#rw-time").value = "19:00";
-    doc.querySelector('[data-nav="next"]').click();
-    await sleep(20);
+    const target = await fillDetails(w, doc, { time: "19:00" });
+    // Party stepper is on the same page now, so bump it before continuing.
     doc.querySelector('[data-action="increment"]').click();
     doc.querySelector('[data-nav="next"]').click();
-    await sleep(20);
-    setVal(w, doc.querySelector("#rw-name"), "Anna Muster");
-    setVal(w, doc.querySelector("#rw-email"), "anna@example.ch");
-    setVal(w, doc.querySelector("#rw-phone"), "+41 79 123 45 67");
-    doc.querySelector('[data-nav="next"]').click();
-    await sleep(20);
-    ok("reached step 4", visiblePanels(doc)[0].dataset.stepPanel === "4");
+    await sleep(30);
+    ok("reached the payment step", visiblePanels(doc)[0].dataset.stepPanel === "2");
     ok("payment slot explains the TWINT redirect", doc.querySelector("#rw-payment-slot").textContent.length > 10);
 
     // Pretend enough time passed to clear the bot-timing check.
@@ -341,18 +379,7 @@ function setVal(w, el, value) {
     };
     const { w, doc } = await makeWidget({ fetchImpl });
 
-    const target = iso(new Date(Date.now() + 5 * 864e5));
-    setVal(w, doc.querySelector("#rw-date"), target);
-    await sleep(80);
-    doc.querySelector("#rw-time").value = "19:00";
-    doc.querySelector('[data-nav="next"]').click();
-    await sleep(20);
-    doc.querySelector('[data-nav="next"]').click();
-    await sleep(20);
-    setVal(w, doc.querySelector("#rw-name"), "Anna Muster");
-    setVal(w, doc.querySelector("#rw-email"), "anna@example.ch");
-    setVal(w, doc.querySelector("#rw-phone"), "+41 79 123 45 67");
-    doc.querySelector('[data-nav="next"]').click();
+    const target = await advanceToPayment(w, doc, { time: "19:00" });
     await sleep(3000);
     doc.querySelector("#rw-reservation-form").dispatchEvent(
       new w.Event("submit", { bubbles: true, cancelable: true })
@@ -384,17 +411,7 @@ function setVal(w, el, value) {
     };
     const { w, doc } = await makeWidget({ fetchImpl });
 
-    setVal(w, doc.querySelector("#rw-date"), iso(new Date(Date.now() + 5 * 864e5)));
-    await sleep(80);
-    doc.querySelector("#rw-time").value = "19:00";
-    doc.querySelector('[data-nav="next"]').click();
-    await sleep(20);
-    doc.querySelector('[data-nav="next"]').click();
-    await sleep(20);
-    setVal(w, doc.querySelector("#rw-name"), "Anna Muster");
-    setVal(w, doc.querySelector("#rw-email"), "anna@example.ch");
-    setVal(w, doc.querySelector("#rw-phone"), "+41 79 123 45 67");
-    doc.querySelector('[data-nav="next"]').click();
+    await advanceToPayment(w, doc, { time: "19:00" });
     await sleep(3000);
     doc.querySelector("#rw-reservation-form").dispatchEvent(
       new w.Event("submit", { bubbles: true, cancelable: true })
@@ -422,17 +439,7 @@ function setVal(w, el, value) {
       return Promise.reject(new TypeError("offline"));
     };
     const { w, doc } = await makeWidget({ fetchImpl });
-    setVal(w, doc.querySelector("#rw-date"), iso(new Date(Date.now() + 5 * 864e5)));
-    await sleep(80);
-    doc.querySelector("#rw-time").value = "19:00";
-    doc.querySelector('[data-nav="next"]').click();
-    await sleep(20);
-    doc.querySelector('[data-nav="next"]').click();
-    await sleep(20);
-    setVal(w, doc.querySelector("#rw-name"), "Anna Muster");
-    setVal(w, doc.querySelector("#rw-email"), "anna@example.ch");
-    setVal(w, doc.querySelector("#rw-phone"), "+41 79 123 45 67");
-    doc.querySelector('[data-nav="next"]').click();
+    await advanceToPayment(w, doc, { time: "19:00" });
     await sleep(3000);
     doc.querySelector("#rw-reservation-form").dispatchEvent(
       new w.Event("submit", { bubbles: true, cancelable: true })
@@ -546,6 +553,20 @@ function setVal(w, el, value) {
       for (const k of keys) if (!(k in w.RW_I18N[code])) missing.push(code + "." + k);
     }
     ok("no missing translation keys", missing.length === 0, missing.join(", "));
+
+    // The check above compares languages against each other, so a key that is
+    // absent from *all* of them passes it — and then renders on screen as the
+    // raw key ("step_reservation"). Check the markup's keys really exist.
+    const used = new Set([
+      ...[...doc.querySelectorAll("[data-i18n]")].map((el) => el.dataset.i18n),
+      ...["placeholder", "aria-label", "title"].flatMap((a) =>
+        [...doc.querySelectorAll("[data-i18n-" + a + "]")].map((el) =>
+          el.getAttribute("data-i18n-" + a)
+        )
+      ),
+    ]);
+    const unknown = [...used].filter((k) => !(k in w.RW_I18N.en));
+    ok("every key used in the markup exists in the dictionary", unknown.length === 0, unknown.join(", "));
   }
 
   console.log("\n=== 12b. Switching language on later screens ===");
@@ -560,18 +581,7 @@ function setVal(w, el, value) {
     };
 
     setLang("en");
-    setVal(w, doc.querySelector("#rw-date"), iso(new Date(Date.now() + 5 * 864e5)));
-    await sleep(80);
-    doc.querySelector("#rw-time").value = "19:00";
-    doc.querySelector('[data-nav="next"]').click();
-    await sleep(20);
-    doc.querySelector('[data-nav="next"]').click();
-    await sleep(20);
-    setVal(w, doc.querySelector("#rw-name"), "Anna Muster");
-    setVal(w, doc.querySelector("#rw-email"), "anna@example.ch");
-    setVal(w, doc.querySelector("#rw-phone"), "+41 79 123 45 67");
-    doc.querySelector('[data-nav="next"]').click();
-    await sleep(50);
+    await advanceToPayment(w, doc, { time: "19:00" });
 
     ok("final step shows the confirm label", navLabel() === "Confirm & place hold", navLabel());
     setLang("de");
@@ -613,17 +623,7 @@ function setVal(w, el, value) {
     };
 
     setLang("en");
-    setVal(w, doc.querySelector("#rw-date"), iso(new Date(Date.now() + 5 * 864e5)));
-    await sleep(80);
-    doc.querySelector("#rw-time").value = "19:00";
-    doc.querySelector('[data-nav="next"]').click();
-    await sleep(20);
-    doc.querySelector('[data-nav="next"]').click();
-    await sleep(20);
-    setVal(w, doc.querySelector("#rw-name"), "Anna Muster");
-    setVal(w, doc.querySelector("#rw-email"), "anna@example.ch");
-    setVal(w, doc.querySelector("#rw-phone"), "+41 79 123 45 67");
-    doc.querySelector('[data-nav="next"]').click();
+    await advanceToPayment(w, doc, { time: "19:00" });
     await sleep(3000);
     doc.querySelector("#rw-reservation-form").dispatchEvent(
       new w.Event("submit", { bubbles: true, cancelable: true })

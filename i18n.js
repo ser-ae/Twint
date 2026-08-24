@@ -17,10 +17,8 @@ window.RW_I18N = {
     steps_label: "Buchungsschritte",
     lang_switch: "Sprache",
 
-    step_1: "Datum & Zeit",
-    step_2: "Personenzahl",
-    step_3: "Ihre Angaben",
-    step_4: "Reservation sichern",
+    step_reservation: "Ihre Reservation",
+    step_payment: "Reservation sichern",
 
     legend_1: "Datum & Zeit",
     legend_2: "Personenzahl",
@@ -97,10 +95,8 @@ window.RW_I18N = {
     steps_label: "Étapes de réservation",
     lang_switch: "Langue",
 
-    step_1: "Date & heure",
-    step_2: "Nombre de personnes",
-    step_3: "Vos coordonnées",
-    step_4: "Garantir la table",
+    step_reservation: "Votre réservation",
+    step_payment: "Garantir la table",
 
     legend_1: "Date & heure",
     legend_2: "Nombre de personnes",
@@ -177,10 +173,8 @@ window.RW_I18N = {
     steps_label: "Fasi della prenotazione",
     lang_switch: "Lingua",
 
-    step_1: "Data e ora",
-    step_2: "Numero di persone",
-    step_3: "I tuoi dati",
-    step_4: "Conferma il tavolo",
+    step_reservation: "La tua prenotazione",
+    step_payment: "Conferma il tavolo",
 
     legend_1: "Data e ora",
     legend_2: "Numero di persone",
@@ -257,10 +251,8 @@ window.RW_I18N = {
     steps_label: "Booking steps",
     lang_switch: "Language",
 
-    step_1: "Date & time",
-    step_2: "Party size",
-    step_3: "Your details",
-    step_4: "Secure hold",
+    step_reservation: "Your reservation",
+    step_payment: "Secure hold",
 
     legend_1: "Date & time",
     legend_2: "Party size",

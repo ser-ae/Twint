@@ -5,7 +5,7 @@
  * Contents
  *   1.  Config              — data-attributes, then overridden by the server
  *   2.  i18n                — DE / FR / IT / EN, see i18n.js
- *   3.  Step machine        — progressive disclosure of the 4 fieldsets
+ *   3.  Step machine        — details panel, then the payment panel
  *   4.  Validation          — inline, per-field, translated
  *   5.  Availability        — real slots from the server, safe fallback
  *   6.  Party-size stepper
@@ -532,8 +532,10 @@
     });
 
     // Party size is a hidden input, so it is exempt from normal validation.
-    // Check it explicitly rather than trusting the DOM.
-    if (n === 2 && partyInput) {
+    // Check it explicitly rather than trusting the DOM. Keyed off which panel
+    // actually contains the stepper, so regrouping the steps cannot silently
+    // drop the check.
+    if (partyInput && panel.contains(partyInput)) {
       var size = Number(partyInput.value);
       if (!Number.isInteger(size) || size < cfg.minParty || size > cfg.maxParty) {
         partyInput.value = String(clampParty(size));
