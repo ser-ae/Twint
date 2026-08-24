@@ -1001,12 +1001,12 @@
     showPendingState();
 
     var deadline = Date.now() + (timeoutMs || 90000);
-    var delay = 1500;
+    var delay = 0; // check once immediately, then back off
+    var data;
 
     while (Date.now() < deadline) {
-      await sleep(delay);
-      delay = Math.min(delay * 1.4, 5000); // back off gently
-      var data;
+      if (delay) await sleep(delay);
+      delay = delay ? Math.min(delay * 1.4, 5000) : 1500;
       try {
         data = await api("/v1/reservations/" + encodeURIComponent(reservationId));
       } catch (err) {
