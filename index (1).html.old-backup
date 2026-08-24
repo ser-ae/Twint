@@ -1,0 +1,228 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Table Reservation</title>
+    <!-- This file is meant to be served standalone inside an <iframe>,
+       OR the <div class="rw-widget"> below can be copy-pasted directly
+       into a host page and loaded via <script src="widget.js" defer></script>.
+       All styles are scoped under .rw-widget so nothing leaks into the host site. -->
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <div
+      class="rw-widget"
+      data-restaurant-id="REPLACE_WITH_RESTAURANT_ID"
+      style="--rw-accent: #0f62fe"
+    >
+      <!-- HEADER -->
+      <header class="rw-header">
+        <div class="rw-brand">
+          <span class="rw-brand__mark" aria-hidden="true">●</span>
+          <span class="rw-brand__name">Restaurant Name</span>
+        </div>
+        <p class="rw-header__sub">Reserve a table</p>
+      </header>
+
+      <form class="rw-form" id="rw-reservation-form" novalidate>
+        <!-- STEP 1 — DATE & TIME -->
+        <fieldset class="rw-fieldset">
+          <legend class="rw-legend">Date &amp; time</legend>
+
+          <div class="rw-field">
+            <label class="rw-label" for="rw-date">Date</label>
+            <input
+              class="rw-input rw-input--mono"
+              type="date"
+              id="rw-date"
+              name="date"
+              required
+            />
+          </div>
+
+          <div class="rw-field">
+            <label class="rw-label" for="rw-time">Time</label>
+            <select
+              class="rw-input rw-input--mono"
+              id="rw-time"
+              name="time"
+              required
+            >
+              <option value="" disabled selected>Select a time</option>
+              <option value="18:00">18:00</option>
+              <option value="18:30">18:30</option>
+              <option value="19:00">19:00</option>
+              <option value="19:30">19:30</option>
+              <option value="20:00">20:00</option>
+              <option value="20:30">20:30</option>
+              <option value="21:00">21:00</option>
+            </select>
+          </div>
+        </fieldset>
+
+        <!-- STEP 2 — PARTY SIZE -->
+        <fieldset class="rw-fieldset">
+          <legend class="rw-legend">Party size</legend>
+
+          <div class="rw-stepper" role="group" aria-label="Number of guests">
+            <button
+              class="rw-stepper__btn"
+              type="button"
+              data-action="decrement"
+              aria-label="Decrease guests"
+            >
+              −
+            </button>
+            <output class="rw-stepper__value" id="rw-party-value" for="rw-party"
+              >2</output
+            >
+            <button
+              class="rw-stepper__btn"
+              type="button"
+              data-action="increment"
+              aria-label="Increase guests"
+            >
+              +
+            </button>
+            <input type="hidden" id="rw-party" name="party_size" value="2" />
+          </div>
+          <p class="rw-hint">
+            Larger parties (10+)? Contact the restaurant directly.
+          </p>
+        </fieldset>
+
+        <!-- STEP 3 — GUEST DETAILS -->
+        <fieldset class="rw-fieldset">
+          <legend class="rw-legend">Your details</legend>
+
+          <div class="rw-field">
+            <label class="rw-label" for="rw-name">Full name</label>
+            <input
+              class="rw-input"
+              type="text"
+              id="rw-name"
+              name="guest_name"
+              autocomplete="name"
+              required
+            />
+          </div>
+
+          <div class="rw-field">
+            <label class="rw-label" for="rw-email">Email</label>
+            <input
+              class="rw-input"
+              type="email"
+              id="rw-email"
+              name="guest_email"
+              autocomplete="email"
+              required
+            />
+          </div>
+
+          <div class="rw-field">
+            <label class="rw-label" for="rw-phone">Mobile number</label>
+            <input
+              class="rw-input"
+              type="tel"
+              id="rw-phone"
+              name="guest_phone"
+              autocomplete="tel"
+              placeholder="+41 79 000 00 00"
+              required
+            />
+          </div>
+
+          <div class="rw-field">
+            <label class="rw-label" for="rw-notes"
+              >Notes <span class="rw-optional">(optional)</span></label
+            >
+            <textarea
+              class="rw-input"
+              id="rw-notes"
+              name="notes"
+              rows="2"
+              placeholder="Allergies, high chair, special occasion…"
+            ></textarea>
+          </div>
+        </fieldset>
+
+        <!-- STEP 4 — NO-SHOW FEE + PAYMENT METHOD -->
+        <fieldset class="rw-fieldset">
+          <legend class="rw-legend">Secure your table</legend>
+
+          <div class="rw-notice">
+            <p class="rw-notice__title">
+              <span aria-hidden="true">🔒</span>
+              <span class="rw-notice__amount" id="rw-fee-amount"
+                >CHF 30.00</span
+              >
+              <span>secure hold — not a charge</span>
+            </p>
+            <p class="rw-notice__body">
+              We place a temporary hold on your card or TWINT account to secure
+              this table. It is
+              <strong>automatically released within 24 hours</strong> after your
+              reservation time. You are only charged if the restaurant marks the
+              reservation as a no-show.
+            </p>
+          </div>
+
+          <div class="rw-payment" role="radiogroup" aria-label="Payment method">
+            <label class="rw-payment__option">
+              <input type="radio" name="payment_method" value="twint" checked />
+              <span class="rw-payment__card">
+                <span class="rw-payment__name">TWINT</span>
+                <span class="rw-payment__desc">Pay with the TWINT app</span>
+              </span>
+            </label>
+
+            <label class="rw-payment__option">
+              <input type="radio" name="payment_method" value="card" />
+              <span class="rw-payment__card">
+                <span class="rw-payment__name">Card</span>
+                <span class="rw-payment__desc"
+                  >Visa · Mastercard · Apple Pay</span
+                >
+              </span>
+            </label>
+          </div>
+
+          <!-- Mount point for the payment provider's hosted fields / redirect button -->
+          <div class="rw-payment-slot" id="rw-payment-slot" aria-live="polite">
+            <!-- Datatrans/Payrexx TWINT widget or Stripe Payment Element mounts here at runtime -->
+          </div>
+        </fieldset>
+
+        <div class="rw-actions">
+          <button
+            class="rw-btn rw-btn--primary"
+            type="submit"
+            data-nav="submit"
+          >
+            Reserve &amp; Hold via TWINT / Card
+          </button>
+        </div>
+
+        <p class="rw-legal">
+          By continuing you agree to the cancellation policy. No-show fee of
+          <span id="rw-fee-amount-inline">CHF 30.00</span> per reservation,
+          charged only if you neither cancel nor arrive. Powered by
+          <strong>ReserveHold</strong>.
+        </p>
+      </form>
+
+      <!-- CONFIRMATION STATE (shown after successful hold) -->
+      <div class="rw-confirmation" id="rw-confirmation" hidden>
+        <p class="rw-confirmation__mark" aria-hidden="true">✓</p>
+        <h2 class="rw-confirmation__title">Table reserved</h2>
+        <p class="rw-confirmation__body">
+          A confirmation has been sent to your email. Your hold will release
+          automatically if it isn't needed.
+        </p>
+      </div>
+    </div>
+
+    <script src="app.js" defer></script>
+  </body>
+</html>

@@ -1,0 +1,753 @@
+/* ==========================================================================
+   ReserveHold — Booking Widget Styles
+   Scoped entirely under .rw-widget so it never leaks into (or is leaked on
+   by) the host restaurant's site. Every visual token is a CSS custom
+   property declared on .rw-widget — override any of them from the host
+   page to match brand colors, without touching this file.
+   ========================================================================== */
+
+.rw-widget {
+  /* ---- Brand tokens (safe to override per-restaurant) ---- */
+  --rw-accent: #D7263D;          /* primary action / signal color */
+  --rw-accent-ink: #ffffff;      /* text color drawn on top of --rw-accent */
+  --rw-ink: #14181B;             /* primary text */
+  --rw-ink-soft: #5B6167;        /* secondary text */
+  --rw-paper: #FAFAF9;           /* widget background */
+  --rw-surface: #FFFFFF;         /* card / input background */
+  --rw-line: #E3E1DC;            /* hairline dividers, borders */
+  --rw-success: #2E7D32;
+  --rw-danger: #B3261E;          /* validation errors */
+  --rw-warn: #8A5A00;            /* soft warnings, e.g. unverified slots */
+  --rw-radius: 2px;              /* precise, near-square corners */
+  --rw-radius-lg: 4px;
+
+  /* ---- Type tokens ---- */
+  --rw-font-display: -apple-system, "Helvetica Neue", "Inter", Arial, sans-serif;
+  --rw-font-body: -apple-system, "Helvetica Neue", "Inter", Arial, sans-serif;
+  --rw-font-mono: ui-monospace, "SF Mono", "Roboto Mono", "Courier New", monospace;
+
+  /* ---- Layout ---- */
+  --rw-max-width: 420px;
+  --rw-gutter: 20px;
+
+  all: initial;
+  box-sizing: border-box;
+  display: block;
+  width: 100%;
+  max-width: var(--rw-max-width);
+  margin: 0 auto;
+  font-family: var(--rw-font-body);
+  color: var(--rw-ink);
+  background: var(--rw-paper);
+  border: 1px solid var(--rw-line);
+  border-radius: var(--rw-radius-lg);
+  /* No overflow:hidden — it clipped the 2px focus ring on edge elements.
+     The 4px radius has nothing meaningful to clip anyway. */
+  font-size: 15px;
+  line-height: 1.45;
+  -webkit-font-smoothing: antialiased;
+}
+
+.rw-widget *,
+.rw-widget *::before,
+.rw-widget *::after {
+  box-sizing: border-box;
+  font-family: inherit;
+  color: inherit;
+}
+
+.rw-widget :focus-visible {
+  outline: 2px solid var(--rw-accent);
+  outline-offset: 2px;
+}
+
+/* Visible to screen readers, invisible on screen. Used for the language
+   label and anything else that needs a name but not a visual. */
+.rw-sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* ==========================================================================
+   Header
+   ========================================================================== */
+
+.rw-header {
+  padding: 20px var(--rw-gutter) 16px;
+  border-bottom: 1px solid var(--rw-line);
+}
+
+.rw-brand {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.rw-brand__mark {
+  color: var(--rw-accent);
+  font-size: 10px;
+  line-height: 1;
+}
+
+.rw-brand__name {
+  font-family: var(--rw-font-display);
+  font-weight: 700;
+  font-size: 16px;
+  letter-spacing: -0.01em;
+}
+
+.rw-lang-wrap {
+  margin-left: auto;
+}
+
+.rw-lang {
+  font-size: 12px;
+  padding: 2px 4px;
+  color: var(--rw-ink-soft);
+  background: transparent;
+  border: 1px solid var(--rw-line);
+  border-radius: var(--rw-radius);
+  cursor: pointer;
+}
+
+.rw-lang[hidden] {
+  display: none;
+}
+
+.rw-header__sub {
+  margin: 4px 0 0;
+  font-size: 13px;
+  color: var(--rw-ink-soft);
+}
+
+/* ==========================================================================
+   Step indicator — styled like a station departure board:
+   tabular numerals, hairline rules, a single red marker on the active row.
+   Completed rows are real buttons so guests can jump back to them.
+   ========================================================================== */
+
+.rw-steps {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  border-bottom: 1px solid var(--rw-line);
+}
+
+.rw-steps[hidden] {
+  display: none;
+}
+
+.rw-steps__item {
+  border-left: 2px solid transparent;
+}
+
+.rw-steps__item + .rw-steps__item {
+  border-top: 1px solid var(--rw-line);
+}
+
+.rw-steps__btn {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 10px var(--rw-gutter);
+  margin: 0;
+  font-size: 12px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  text-align: left;
+  color: var(--rw-ink-soft);
+  background: transparent;
+  border: 0;
+  cursor: pointer;
+}
+
+.rw-steps__btn:disabled {
+  cursor: default;
+}
+
+/* A completed step is clickable, so hint at it — but only that one. */
+.rw-steps__btn:not(:disabled):hover {
+  background: var(--rw-surface);
+  color: var(--rw-ink);
+}
+
+.rw-steps__item.is-active {
+  border-left-color: var(--rw-accent);
+  background: var(--rw-surface);
+}
+
+.rw-steps__item.is-active .rw-steps__btn {
+  color: var(--rw-ink);
+}
+
+.rw-steps__item.is-done .rw-steps__num::after {
+  content: "✓";
+  margin-left: 4px;
+  color: var(--rw-success);
+}
+
+.rw-steps__num {
+  font-family: var(--rw-font-mono);
+  font-variant-numeric: tabular-nums;
+  font-size: 12px;
+  color: var(--rw-ink-soft);
+}
+
+.rw-steps__item.is-active .rw-steps__num {
+  color: var(--rw-accent);
+}
+
+/* ==========================================================================
+   Form structure
+   ========================================================================== */
+
+.rw-form {
+  padding: 4px var(--rw-gutter) 0;
+}
+
+.rw-form[hidden] {
+  display: none;
+}
+
+.rw-fieldset {
+  border: 0;
+  margin: 0;
+  padding: 20px 0;
+}
+
+/* Progressive disclosure. The previous rule read
+   :not([data-step-panel="1"]), which meant step 1 had no hide rule at all
+   and stayed on screen underneath every later step. All panels hide; app.js
+   reveals exactly one. */
+.rw-fieldset[data-step-panel] {
+  display: none;
+}
+
+.rw-fieldset[data-step-panel].is-visible {
+  display: block;
+}
+
+/* The panel is focused on each step change so screen readers announce it;
+   that must not paint a focus ring, since it isn't a real control. */
+.rw-fieldset[data-step-panel]:focus {
+  outline: none;
+}
+
+.rw-legend {
+  padding: 0 0 14px;
+  font-family: var(--rw-font-display);
+  font-weight: 700;
+  font-size: 13px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--rw-ink-soft);
+}
+
+.rw-field + .rw-field {
+  margin-top: 14px;
+}
+
+.rw-label {
+  display: block;
+  margin-bottom: 6px;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.rw-optional {
+  font-weight: 400;
+  color: var(--rw-ink-soft);
+}
+
+.rw-input {
+  width: 100%;
+  padding: 10px 12px;
+  font-size: 15px;
+  background: var(--rw-surface);
+  border: 1px solid var(--rw-line);
+  border-radius: var(--rw-radius);
+  transition: border-color 120ms ease;
+}
+
+.rw-input:hover {
+  border-color: var(--rw-ink-soft);
+}
+
+.rw-input:focus {
+  border-color: var(--rw-accent);
+  outline: none;
+}
+
+.rw-input:disabled {
+  background: var(--rw-paper);
+  color: var(--rw-ink-soft);
+  cursor: not-allowed;
+}
+
+.rw-input.is-invalid {
+  border-color: var(--rw-danger);
+}
+
+.rw-input--mono {
+  font-family: var(--rw-font-mono);
+  font-variant-numeric: tabular-nums;
+}
+
+textarea.rw-input {
+  resize: vertical;
+  min-height: 56px;
+}
+
+.rw-hint {
+  margin: 10px 0 0;
+  font-size: 12px;
+  color: var(--rw-ink-soft);
+}
+
+/* ==========================================================================
+   Validation messages
+   ========================================================================== */
+
+.rw-field__error {
+  margin: 6px 0 0;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--rw-danger);
+}
+
+.rw-field__error[hidden] {
+  display: none;
+}
+
+.rw-form-error {
+  margin: 0 0 12px;
+  padding: 10px 12px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--rw-danger);
+  background: var(--rw-surface);
+  border: 1px solid var(--rw-danger);
+  border-radius: var(--rw-radius);
+}
+
+.rw-form-error[hidden] {
+  display: none;
+}
+
+.rw-slot-status {
+  margin: 6px 0 0;
+  font-size: 12px;
+  color: var(--rw-ink-soft);
+}
+
+.rw-slot-status[hidden] {
+  display: none;
+}
+
+.rw-slot-status.is-warn {
+  color: var(--rw-warn);
+  font-weight: 600;
+}
+
+/* Bot bait. Kept off-screen rather than display:none, which naive bots
+   detect and skip. Real people never reach it: aria-hidden + tabindex -1. */
+.rw-honeypot {
+  position: absolute;
+  left: -9999px;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+}
+
+/* ==========================================================================
+   Party-size stepper
+   ========================================================================== */
+
+.rw-stepper {
+  display: inline-flex;
+  align-items: center;
+  border: 1px solid var(--rw-line);
+  border-radius: var(--rw-radius);
+  overflow: hidden;
+}
+
+.rw-stepper__btn {
+  width: 40px;
+  height: 40px;
+  border: 0;
+  background: var(--rw-surface);
+  font-size: 18px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.rw-stepper__btn:hover:not(:disabled) {
+  background: var(--rw-paper);
+}
+
+/* At 1 guest the minus is dead and at the maximum the plus is dead. Say so
+   instead of silently doing nothing. */
+.rw-stepper__btn:disabled {
+  color: var(--rw-line);
+  cursor: not-allowed;
+}
+
+.rw-stepper__value {
+  min-width: 48px;
+  text-align: center;
+  font-family: var(--rw-font-mono);
+  font-variant-numeric: tabular-nums;
+  font-size: 16px;
+  font-weight: 700;
+  border-left: 1px solid var(--rw-line);
+  border-right: 1px solid var(--rw-line);
+  padding: 0 8px;
+  line-height: 40px;
+}
+
+/* ==========================================================================
+   No-show fee notice
+   ========================================================================== */
+
+.rw-notice {
+  padding: 14px;
+  background: var(--rw-surface);
+  border: 1px solid var(--rw-line);
+  border-left: 2px solid var(--rw-accent);
+  border-radius: var(--rw-radius);
+}
+
+.rw-notice__title {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin: 0 0 6px;
+  font-size: 13px;
+  color: var(--rw-ink-soft);
+}
+
+.rw-notice__amount {
+  font-family: var(--rw-font-mono);
+  font-variant-numeric: tabular-nums;
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--rw-ink);
+}
+
+.rw-notice__body {
+  margin: 0;
+  font-size: 13px;
+  color: var(--rw-ink-soft);
+}
+
+.rw-notice__body strong {
+  color: var(--rw-ink);
+}
+
+/* ==========================================================================
+   Payment method selector
+   ========================================================================== */
+
+.rw-payment {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin-top: 14px;
+}
+
+/* position:relative matters: without a positioned ancestor the absolutely
+   positioned radio escapes to the page and drags focus-scroll with it. */
+.rw-payment__option {
+  position: relative;
+  display: block;
+  cursor: pointer;
+}
+
+.rw-payment__option input {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.rw-payment__card {
+  display: block;
+  padding: 12px;
+  border: 1px solid var(--rw-line);
+  border-radius: var(--rw-radius);
+  background: var(--rw-surface);
+  transition: border-color 120ms ease, box-shadow 120ms ease;
+}
+
+.rw-payment__option input:checked + .rw-payment__card {
+  border-color: var(--rw-accent);
+  box-shadow: inset 0 0 0 1px var(--rw-accent);
+}
+
+.rw-payment__option input:focus-visible + .rw-payment__card {
+  outline: 2px solid var(--rw-accent);
+  outline-offset: 2px;
+}
+
+.rw-payment__name {
+  display: block;
+  font-weight: 700;
+  font-size: 13px;
+}
+
+.rw-payment__desc {
+  display: block;
+  margin-top: 2px;
+  font-size: 12px;
+  color: var(--rw-ink-soft);
+}
+
+.rw-payment-slot {
+  font-size: 13px;
+  color: var(--rw-ink-soft);
+}
+
+.rw-payment-slot:not(:empty) {
+  margin-top: 12px;
+}
+
+/* ==========================================================================
+   Actions & legal text
+   ========================================================================== */
+
+.rw-actions {
+  display: flex;
+  gap: 10px;
+  padding: 4px 0 16px;
+}
+
+.rw-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  flex: 1;
+  padding: 12px 16px;
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  border-radius: var(--rw-radius);
+  border: 1px solid transparent;
+  cursor: pointer;
+  transition: opacity 120ms ease, background-color 120ms ease;
+}
+
+.rw-btn:disabled {
+  cursor: progress;
+  opacity: 0.75;
+}
+
+.rw-btn--primary {
+  background: var(--rw-accent);
+  color: var(--rw-accent-ink);
+}
+
+.rw-btn--primary:hover:not(:disabled) {
+  opacity: 0.92;
+}
+
+.rw-btn--ghost {
+  background: transparent;
+  border-color: var(--rw-line);
+  color: var(--rw-ink);
+  flex: 0 0 auto;
+}
+
+.rw-btn--ghost:hover:not(:disabled) {
+  background: var(--rw-surface);
+}
+
+.rw-btn[hidden] {
+  display: none;
+}
+
+/* Spinner only appears while the widget is talking to the server, so the
+   guest can see that something is happening. */
+.rw-btn__spinner {
+  display: none;
+  width: 14px;
+  height: 14px;
+  border: 2px solid currentColor;
+  border-top-color: transparent;
+  border-radius: 50%;
+  animation: rw-spin 700ms linear infinite;
+}
+
+.rw-widget.is-busy .rw-btn--primary .rw-btn__spinner {
+  display: block;
+}
+
+@keyframes rw-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.rw-legal {
+  margin: 0;
+  padding-bottom: 20px;
+  font-size: 11px;
+  line-height: 1.5;
+  color: var(--rw-ink-soft);
+}
+
+.rw-legal__link {
+  color: var(--rw-ink);
+  text-decoration: underline;
+}
+
+/* ==========================================================================
+   Pending state — payment is being confirmed with the provider
+   ========================================================================== */
+
+.rw-pending {
+  padding: 40px var(--rw-gutter) 44px;
+  text-align: center;
+}
+
+.rw-pending[hidden] {
+  display: none;
+}
+
+.rw-pending__spinner {
+  width: 28px;
+  height: 28px;
+  margin: 0 auto 16px;
+  border: 3px solid var(--rw-line);
+  border-top-color: var(--rw-accent);
+  border-radius: 50%;
+  animation: rw-spin 800ms linear infinite;
+}
+
+.rw-pending__title {
+  margin: 0 0 8px;
+  font-family: var(--rw-font-display);
+  font-size: 18px;
+  font-weight: 700;
+}
+
+.rw-pending__body {
+  margin: 0;
+  font-size: 13px;
+  color: var(--rw-ink-soft);
+}
+
+/* ==========================================================================
+   Confirmation state
+   ========================================================================== */
+
+.rw-confirmation {
+  padding: 40px var(--rw-gutter) 44px;
+  text-align: center;
+}
+
+.rw-confirmation[hidden] {
+  display: none;
+}
+
+.rw-confirmation:focus {
+  outline: none;
+}
+
+.rw-confirmation__mark {
+  width: 40px;
+  height: 40px;
+  margin: 0 auto 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: var(--rw-success);
+  color: #fff;
+  font-size: 18px;
+}
+
+.rw-confirmation__title {
+  margin: 0 0 8px;
+  font-family: var(--rw-font-display);
+  font-size: 18px;
+  font-weight: 700;
+}
+
+.rw-confirmation__body {
+  margin: 0;
+  font-size: 13px;
+  color: var(--rw-ink-soft);
+}
+
+/* What the guest actually booked, so they have something to check and to
+   quote on the phone. */
+.rw-summary {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 4px 12px;
+  margin: 20px 0 0;
+  padding: 14px;
+  text-align: left;
+  font-size: 13px;
+  background: var(--rw-surface);
+  border: 1px solid var(--rw-line);
+  border-radius: var(--rw-radius);
+}
+
+.rw-summary:empty {
+  display: none;
+}
+
+.rw-summary dt {
+  color: var(--rw-ink-soft);
+}
+
+.rw-summary dd {
+  margin: 0;
+  font-weight: 600;
+  font-family: var(--rw-font-mono);
+  font-variant-numeric: tabular-nums;
+}
+
+.rw-confirmation__manage {
+  display: inline-block;
+  margin-top: 16px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--rw-ink);
+  text-decoration: underline;
+}
+
+.rw-confirmation__manage[hidden] {
+  display: none;
+}
+
+/* ==========================================================================
+   Responsive — widget is fluid down to ~280px for narrow iframe embeds
+   ========================================================================== */
+
+@media (max-width: 360px) {
+  .rw-widget { font-size: 14px; }
+  .rw-payment { grid-template-columns: 1fr; }
+}
+
+/* ==========================================================================
+   Reduced motion
+   ========================================================================== */
+
+@media (prefers-reduced-motion: reduce) {
+  .rw-widget * {
+    transition: none !important;
+    animation: none !important;
+  }
+}

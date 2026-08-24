@@ -1,0 +1,321 @@
+<!doctype html>
+<html lang="de">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Table Reservation</title>
+    <!-- This file is meant to be served standalone inside an <iframe>,
+       OR the <div class="rw-widget"> below can be copy-pasted directly
+       into a host page and loaded via <script src="app.js" defer></script>.
+       All styles are scoped under .rw-widget so nothing leaks into the host site.
+
+       Every setting below is a data-attribute. The server's
+       /v1/restaurants/:id/config endpoint overrides them at runtime, so the
+       fee and limits here are only a fallback for the first paint. -->
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <div
+      class="rw-widget"
+      data-restaurant-id="REPLACE_WITH_RESTAURANT_ID"
+      data-restaurant-name="Restaurant Name"
+      data-api-base="https://api.example-reservehold.com"
+      data-currency="CHF"
+      data-fee-minor="3000"
+      data-min-party="1"
+      data-max-party="9"
+      data-lead-minutes="60"
+      data-booking-window-days="90"
+      data-policy-url=""
+      data-privacy-url=""
+      data-fallback-slots="18:00,18:30,19:00,19:30,20:00,20:30,21:00"
+      style="--rw-accent: #d7263d"
+    >
+      <!-- HEADER -->
+      <header class="rw-header">
+        <div class="rw-brand">
+          <span class="rw-brand__mark" aria-hidden="true">●</span>
+          <span class="rw-brand__name">Restaurant Name</span>
+          <label class="rw-lang-wrap">
+            <span class="rw-sr-only" data-i18n="lang_switch">Language</span>
+            <select class="rw-lang" id="rw-lang"></select>
+          </label>
+        </div>
+        <p class="rw-header__sub" data-i18n="header_sub">Reserve a table</p>
+      </header>
+
+      <!-- STEP INDICATOR (timetable / departure-board style).
+           Completed steps are buttons so a guest can jump back. -->
+      <ol class="rw-steps" id="rw-steps" data-i18n-aria-label="steps_label" aria-label="Booking steps">
+        <li class="rw-steps__item is-active" data-step="1" aria-current="step">
+          <button class="rw-steps__btn" type="button" disabled>
+            <span class="rw-steps__num">01</span
+            ><span class="rw-steps__label" data-i18n="step_1">Date &amp; time</span>
+          </button>
+        </li>
+        <li class="rw-steps__item" data-step="2">
+          <button class="rw-steps__btn" type="button" disabled>
+            <span class="rw-steps__num">02</span
+            ><span class="rw-steps__label" data-i18n="step_2">Party size</span>
+          </button>
+        </li>
+        <li class="rw-steps__item" data-step="3">
+          <button class="rw-steps__btn" type="button" disabled>
+            <span class="rw-steps__num">03</span
+            ><span class="rw-steps__label" data-i18n="step_3">Your details</span>
+          </button>
+        </li>
+        <li class="rw-steps__item" data-step="4">
+          <button class="rw-steps__btn" type="button" disabled>
+            <span class="rw-steps__num">04</span
+            ><span class="rw-steps__label" data-i18n="step_4">Secure hold</span>
+          </button>
+        </li>
+      </ol>
+
+      <!-- novalidate: the widget shows its own translated inline errors
+           instead of the browser's untranslatable bubbles. -->
+      <form class="rw-form" id="rw-reservation-form" novalidate>
+        <!-- STEP 1 — DATE & TIME -->
+        <fieldset class="rw-fieldset is-visible" data-step-panel="1">
+          <legend class="rw-legend" data-i18n="legend_1">Date &amp; time</legend>
+
+          <div class="rw-field">
+            <label class="rw-label" for="rw-date" data-i18n="label_date">Date</label>
+            <input
+              class="rw-input rw-input--mono"
+              type="date"
+              id="rw-date"
+              name="date"
+              required
+            />
+          </div>
+
+          <div class="rw-field">
+            <label class="rw-label" for="rw-time" data-i18n="label_time">Time</label>
+            <!-- Options are replaced at runtime with real availability from
+                 the server; these are only a no-JS / offline fallback. -->
+            <select
+              class="rw-input rw-input--mono"
+              id="rw-time"
+              name="time"
+              required
+            >
+              <option value="" disabled selected data-i18n="time_placeholder">
+                Select a time
+              </option>
+            </select>
+            <p class="rw-slot-status" id="rw-slot-status" role="status" hidden></p>
+          </div>
+        </fieldset>
+
+        <!-- STEP 2 — PARTY SIZE -->
+        <fieldset class="rw-fieldset" data-step-panel="2" hidden>
+          <legend class="rw-legend" data-i18n="legend_2">Party size</legend>
+
+          <div
+            class="rw-stepper"
+            role="group"
+            data-i18n-aria-label="guests_group"
+            aria-label="Number of guests"
+          >
+            <button
+              class="rw-stepper__btn"
+              type="button"
+              data-action="decrement"
+              data-i18n-aria-label="guests_decrease"
+              aria-label="Decrease guests"
+            >
+              −
+            </button>
+            <output class="rw-stepper__value" id="rw-party-value" for="rw-party"
+              >2</output
+            >
+            <button
+              class="rw-stepper__btn"
+              type="button"
+              data-action="increment"
+              data-i18n-aria-label="guests_increase"
+              aria-label="Increase guests"
+            >
+              +
+            </button>
+            <input type="hidden" id="rw-party" name="party_size" value="2" />
+          </div>
+          <p class="rw-hint" data-i18n="guests_hint">
+            Larger parties (10+)? Contact the restaurant directly.
+          </p>
+        </fieldset>
+
+        <!-- STEP 3 — GUEST DETAILS -->
+        <fieldset class="rw-fieldset" data-step-panel="3" hidden>
+          <legend class="rw-legend" data-i18n="legend_3">Your details</legend>
+
+          <div class="rw-field">
+            <label class="rw-label" for="rw-name" data-i18n="label_name">Full name</label>
+            <input
+              class="rw-input"
+              type="text"
+              id="rw-name"
+              name="guest_name"
+              autocomplete="name"
+              required
+            />
+          </div>
+
+          <div class="rw-field">
+            <label class="rw-label" for="rw-email" data-i18n="label_email">Email</label>
+            <input
+              class="rw-input"
+              type="email"
+              id="rw-email"
+              name="guest_email"
+              autocomplete="email"
+              inputmode="email"
+              required
+            />
+          </div>
+
+          <div class="rw-field">
+            <label class="rw-label" for="rw-phone" data-i18n="label_phone">Mobile number</label>
+            <input
+              class="rw-input"
+              type="tel"
+              id="rw-phone"
+              name="guest_phone"
+              autocomplete="tel"
+              inputmode="tel"
+              data-i18n-placeholder="phone_placeholder"
+              placeholder="+41 79 000 00 00"
+              required
+            />
+          </div>
+
+          <div class="rw-field">
+            <label class="rw-label" for="rw-notes"
+              ><span data-i18n="label_notes">Notes</span>
+              <span class="rw-optional" data-i18n="optional">(optional)</span></label
+            >
+            <textarea
+              class="rw-input"
+              id="rw-notes"
+              name="notes"
+              rows="2"
+              maxlength="500"
+              data-i18n-placeholder="notes_placeholder"
+              placeholder="Allergies, high chair, special occasion…"
+            ></textarea>
+          </div>
+
+          <!-- Honeypot: invisible to people, irresistible to simple bots.
+               Not a substitute for server-side rate limiting. -->
+          <div class="rw-honeypot" aria-hidden="true">
+            <label for="rw-website">Website</label>
+            <input
+              type="text"
+              id="rw-website"
+              name="website"
+              tabindex="-1"
+              autocomplete="off"
+            />
+          </div>
+        </fieldset>
+
+        <!-- STEP 4 — NO-SHOW FEE + PAYMENT METHOD -->
+        <fieldset class="rw-fieldset" data-step-panel="4" hidden>
+          <legend class="rw-legend" data-i18n="legend_4">Secure your table</legend>
+
+          <div class="rw-notice">
+            <p class="rw-notice__title">
+              <span class="rw-notice__amount" id="rw-fee-amount" data-fee-amount
+                >CHF 30.00</span
+              >
+              <span data-i18n="fee_suffix">hold — not a charge</span>
+            </p>
+            <p class="rw-notice__body" data-i18n="fee_body">
+              We place a temporary hold on your card or TWINT account to secure
+              this table. It is released automatically after your reservation
+              time. You are only charged if the restaurant marks the reservation
+              as a no-show.
+            </p>
+          </div>
+
+          <div
+            class="rw-payment"
+            role="radiogroup"
+            data-i18n-aria-label="payment_group"
+            aria-label="Payment method"
+          >
+            <label class="rw-payment__option">
+              <input type="radio" name="payment_method" value="twint" checked />
+              <span class="rw-payment__card">
+                <span class="rw-payment__name" data-i18n="pay_twint">TWINT</span>
+                <span class="rw-payment__desc" data-i18n="pay_twint_desc"
+                  >Pay with the TWINT app</span
+                >
+              </span>
+            </label>
+
+            <label class="rw-payment__option">
+              <input type="radio" name="payment_method" value="card" />
+              <span class="rw-payment__card">
+                <span class="rw-payment__name" data-i18n="pay_card">Card</span>
+                <span class="rw-payment__desc" data-i18n="pay_card_desc"
+                  >Visa · Mastercard · Apple Pay</span
+                >
+              </span>
+            </label>
+          </div>
+
+          <!-- Mount point for the payment provider's hosted fields / redirect button -->
+          <div class="rw-payment-slot" id="rw-payment-slot" aria-live="polite">
+            <!-- Datatrans/Payrexx TWINT widget or Stripe Payment Element mounts here at runtime -->
+          </div>
+        </fieldset>
+
+        <p class="rw-form-error" id="rw-form-error" role="alert" hidden></p>
+
+        <div class="rw-actions">
+          <button
+            class="rw-btn rw-btn--ghost"
+            type="button"
+            data-nav="back"
+            data-i18n="btn_back"
+            hidden
+          >
+            Back
+          </button>
+          <button class="rw-btn rw-btn--primary" type="submit" data-nav="next">
+            <span class="rw-btn__spinner" aria-hidden="true"></span>
+            <span data-nav-label>Continue</span>
+          </button>
+        </div>
+
+        <p class="rw-legal" id="rw-legal"></p>
+      </form>
+
+      <!-- PENDING STATE (payment is being confirmed with the provider) -->
+      <div class="rw-pending" id="rw-pending" role="status" hidden>
+        <p class="rw-pending__spinner" aria-hidden="true"></p>
+        <h2 class="rw-pending__title" data-i18n="conf_pending_title">
+          Checking your payment…
+        </h2>
+        <p class="rw-pending__body" data-i18n="conf_pending_body">
+          Please don't close this window. It only takes a moment.
+        </p>
+      </div>
+
+      <!-- CONFIRMATION STATE (shown only once the hold really exists) -->
+      <div class="rw-confirmation" id="rw-confirmation" hidden>
+        <p class="rw-confirmation__mark" aria-hidden="true">✓</p>
+        <h2 class="rw-confirmation__title" data-i18n="conf_title">Table reserved</h2>
+        <p class="rw-confirmation__body" id="rw-confirmation-body"></p>
+        <dl class="rw-summary" id="rw-confirmation-summary"></dl>
+        <a class="rw-confirmation__manage" id="rw-manage-link" href="#" hidden></a>
+      </div>
+    </div>
+
+    <script src="i18n.js" defer></script>
+    <script src="app.js" defer></script>
+  </body>
+</html>
