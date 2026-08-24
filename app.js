@@ -222,6 +222,9 @@
   var mountedAt = Date.now();
   var idempotencyKey = uuid();
   var busy = false;
+  // Kept so the confirmation screen can be re-rendered on a language change,
+  // long after the form fields it was built from have been cleared.
+  var lastReservation = null;
 
   // ---------------------------------------------------------------------
   // Translation application
@@ -249,6 +252,11 @@
     renderFeeAmounts();
     if (timeSelect) updateTimePlaceholder();
     renderPaymentSlot();
+    // Both of these write strings whose key depends on runtime state, so they
+    // cannot be expressed as static data-i18n attributes and have to be
+    // re-run by hand whenever the language changes.
+    renderNavLabel();
+    renderConfirmation();
     if (langSelect) langSelect.value = lang;
   }
 
@@ -329,6 +337,19 @@
   // 3. Step machine
   // ---------------------------------------------------------------------
 
+  /** The primary button cycles through three keys depending on where the
+   *  guest is, so it is rendered from state rather than carried in the markup.
+   *  Checking `busy` first keeps a language switch mid-submit from replacing
+   *  "Processing…" with "Continue". */
+  function renderNavLabel() {
+    if (!nextLabel) return;
+    nextLabel.textContent = busy
+      ? t("btn_working")
+      : currentStep === totalSteps
+      ? t("btn_confirm")
+      : t("btn_continue");
+  }
+
   function showStep(n, opts) {
     currentStep = n;
 
@@ -355,7 +376,7 @@
     if (backBtn) backBtn.hidden = n === 1;
 
     var isFinal = n === totalSteps;
-    if (nextLabel) nextLabel.textContent = isFinal ? t("btn_confirm") : t("btn_continue");
+    renderNavLabel();
     nextBtn.setAttribute("data-final", isFinal ? "true" : "false");
 
     if (isFinal) mountPaymentWidget();
@@ -798,13 +819,7 @@
     nextBtn.disabled = state;
     if (backBtn) backBtn.disabled = state;
     widget.classList.toggle("is-busy", state);
-    if (nextLabel) {
-      nextLabel.textContent = state
-        ? t("btn_working")
-        : currentStep === totalSteps
-        ? t("btn_confirm")
-        : t("btn_continue");
-    }
+    renderNavLabel();
   }
 
   async function api(path, options) {
@@ -1045,24 +1060,48 @@
     if (stepsList) stepsList.hidden = true;
     if (!confirmation) return;
 
+    // Resolve the form fallbacks once, here: the draft has just been cleared
+    // and the fields may be reset, so a later re-render cannot re-read them.
     var r = reservation || {};
-    var dateStr = r.date || (form.elements.date && form.elements.date.value) || "";
-    var timeStr = r.time || (form.elements.time && form.elements.time.value) || "";
-    var size = r.party_size || (partyInput && Number(partyInput.value)) || 0;
-    var email = r.guest_email || (form.elements.guest_email && form.elements.guest_email.value) || "";
+    lastReservation = {
+      date: r.date || (form.elements.date && form.elements.date.value) || "",
+      time: r.time || (form.elements.time && form.elements.time.value) || "",
+      party_size: r.party_size || (partyInput && Number(partyInput.value)) || 0,
+      guest_email:
+        r.guest_email || (form.elements.guest_email && form.elements.guest_email.value) || "",
+      reference: r.reference,
+      manage_url: r.manage_url,
+    };
+
+    renderConfirmation();
+
+    confirmation.hidden = false;
+    confirmation.setAttribute("tabindex", "-1");
+    confirmation.focus();
+  }
+
+  /** Rebuilt from `lastReservation` rather than the form, so switching
+   *  language on the confirmation screen re-translates it — there is no step
+   *  navigation left to trigger a redraw. */
+  function renderConfirmation() {
+    if (!confirmation || !lastReservation) return;
+    var r = lastReservation;
 
     var body = $("#rw-confirmation-body");
-    if (body) body.textContent = t("conf_body", { email: email });
+    if (body) body.textContent = t("conf_body", { email: r.guest_email });
 
     // Show the guest what they actually booked, plus a reference they can
     // quote on the phone. The old screen showed none of this.
     var summary = $("#rw-confirmation-summary");
     if (summary) {
       summary.textContent = "";
-      var parsed = parseISODate(dateStr);
+      var parsed = parseISODate(r.date);
       var rows = [
-        [t("conf_when"), parsed ? formatDateLong(parsed) + ", " + timeStr : dateStr + " " + timeStr],
-        [t("conf_guests"), t("conf_guests_value", { n: size })],
+        [
+          t("conf_when"),
+          parsed ? formatDateLong(parsed) + ", " + r.time : r.date + " " + r.time,
+        ],
+        [t("conf_guests"), t("conf_guests_value", { n: r.party_size })],
       ];
       if (r.reference) rows.unshift([t("conf_ref"), r.reference]);
 
@@ -1088,10 +1127,6 @@
         manage.hidden = true;
       }
     }
-
-    confirmation.hidden = false;
-    confirmation.setAttribute("tabindex", "-1");
-    confirmation.focus();
   }
 
   // ---------------------------------------------------------------------

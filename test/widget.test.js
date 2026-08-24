@@ -519,15 +519,23 @@ function setVal(w, el, value) {
       sel.value = code;
       sel.dispatchEvent(new w.Event("change", { bubbles: true }));
     };
+    const navLabel = () => doc.querySelector("[data-nav-label]").textContent;
+
     setLang("de");
     ok("German applied", doc.querySelector(".rw-header__sub").textContent === "Tisch reservieren");
     ok("widget lang attribute updated", doc.querySelector(".rw-widget").getAttribute("lang") === "de");
+    // The nav button label is written from state, not a data-i18n attribute,
+    // so it used to keep the old language until the next step navigation.
+    ok("German nav button", navLabel() === "Weiter", navLabel());
     setLang("fr");
     ok("French applied", doc.querySelector(".rw-header__sub").textContent === "Réserver une table");
+    ok("French nav button", navLabel() === "Continuer", navLabel());
     setLang("it");
     ok("Italian applied", doc.querySelector(".rw-header__sub").textContent === "Prenota un tavolo");
+    ok("Italian nav button", navLabel() === "Continua", navLabel());
     setLang("en");
     ok("English applied", doc.querySelector(".rw-header__sub").textContent === "Reserve a table");
+    ok("English nav button, without pressing Continue", navLabel() === "Continue", navLabel());
     ok("legal text rendered with the fee", /30/.test(doc.querySelector("#rw-legal").textContent));
     ok("guests hint interpolated", /10/.test(doc.querySelector(".rw-hint").textContent), doc.querySelector(".rw-hint").textContent);
 
@@ -538,6 +546,102 @@ function setVal(w, el, value) {
       for (const k of keys) if (!(k in w.RW_I18N[code])) missing.push(code + "." + k);
     }
     ok("no missing translation keys", missing.length === 0, missing.join(", "));
+  }
+
+  console.log("\n=== 12b. Switching language on later screens ===");
+  {
+    // On the final step the same button shows btn_confirm, not btn_continue.
+    const { w, doc } = await makeWidget();
+    const navLabel = () => doc.querySelector("[data-nav-label]").textContent;
+    const setLang = (code) => {
+      const sel = doc.querySelector("#rw-lang");
+      sel.value = code;
+      sel.dispatchEvent(new w.Event("change", { bubbles: true }));
+    };
+
+    setLang("en");
+    setVal(w, doc.querySelector("#rw-date"), iso(new Date(Date.now() + 5 * 864e5)));
+    await sleep(80);
+    doc.querySelector("#rw-time").value = "19:00";
+    doc.querySelector('[data-nav="next"]').click();
+    await sleep(20);
+    doc.querySelector('[data-nav="next"]').click();
+    await sleep(20);
+    setVal(w, doc.querySelector("#rw-name"), "Anna Muster");
+    setVal(w, doc.querySelector("#rw-email"), "anna@example.ch");
+    setVal(w, doc.querySelector("#rw-phone"), "+41 79 123 45 67");
+    doc.querySelector('[data-nav="next"]').click();
+    await sleep(50);
+
+    ok("final step shows the confirm label", navLabel() === "Confirm & place hold", navLabel());
+    setLang("de");
+    ok(
+      "language switch keeps the confirm label, not continue",
+      navLabel() === "Bestätigen & sichern",
+      navLabel()
+    );
+  }
+
+  console.log("\n=== 12c. Switching language on the confirmation screen ===");
+  {
+    // The confirmation is built once from the server response; a language
+    // switch there has no step navigation left to trigger a redraw.
+    const fetchImpl = (url, opts) => {
+      if (/\/availability/.test(url)) return Promise.reject(new TypeError("offline"));
+      if (/\/reservations$/.test(url) && opts && opts.method === "POST") {
+        return Promise.resolve({
+          ok: true,
+          status: 201,
+          json: () =>
+            Promise.resolve({
+              status: "confirmed",
+              reference: "RH-555",
+              date: iso(new Date(Date.now() + 5 * 864e5)),
+              time: "19:00",
+              party_size: 2,
+              guest_email: "anna@example.ch",
+            }),
+        });
+      }
+      return Promise.reject(new TypeError("offline"));
+    };
+    const { w, doc } = await makeWidget({ fetchImpl });
+    const setLang = (code) => {
+      const sel = doc.querySelector("#rw-lang");
+      sel.value = code;
+      sel.dispatchEvent(new w.Event("change", { bubbles: true }));
+    };
+
+    setLang("en");
+    setVal(w, doc.querySelector("#rw-date"), iso(new Date(Date.now() + 5 * 864e5)));
+    await sleep(80);
+    doc.querySelector("#rw-time").value = "19:00";
+    doc.querySelector('[data-nav="next"]').click();
+    await sleep(20);
+    doc.querySelector('[data-nav="next"]').click();
+    await sleep(20);
+    setVal(w, doc.querySelector("#rw-name"), "Anna Muster");
+    setVal(w, doc.querySelector("#rw-email"), "anna@example.ch");
+    setVal(w, doc.querySelector("#rw-phone"), "+41 79 123 45 67");
+    doc.querySelector('[data-nav="next"]').click();
+    await sleep(3000);
+    doc.querySelector("#rw-reservation-form").dispatchEvent(
+      new w.Event("submit", { bubbles: true, cancelable: true })
+    );
+    await sleep(150);
+
+    const summary = () => doc.querySelector("#rw-confirmation-summary").textContent;
+    ok("confirmation shown", doc.querySelector("#rw-confirmation").hidden === false);
+    ok("English summary labels", /Guests/.test(summary()), summary());
+
+    setLang("de");
+    ok("summary re-translated to German", /Gäste/.test(summary()), summary());
+    ok("reference survives the re-render", /RH-555/.test(summary()), summary());
+    ok(
+      "confirmation body re-translated",
+      /gesendet/.test(doc.querySelector("#rw-confirmation-body").textContent),
+      doc.querySelector("#rw-confirmation-body").textContent
+    );
   }
 
   console.log("\n=== 13. Stale markup must not crash the script ===");
