@@ -99,7 +99,10 @@
 
   var d = widget.dataset;
   var cfg = {
-    apiBase: (d.apiBase || "https://api.example-reservehold.com").replace(/\/+$/, ""),
+    // Empty data-api-base means "the server that served this page". That is
+    // what the dev server does, and it keeps the Testumgebung same-origin so
+    // there is no CORS in the way while testing.
+    apiBase: (d.apiBase || window.location.origin || "").replace(/\/+$/, ""),
     restaurantId: d.restaurantId || "",
     restaurantName: d.restaurantName || "",
     currency: d.currency || "CHF",

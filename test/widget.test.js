@@ -674,7 +674,10 @@ async function advanceToPayment(w, doc, opts) {
     setVal(w, doc.querySelector("#rw-name"), "Anna Muster");
     setVal(w, doc.querySelector("#rw-email"), "anna@example.ch");
     await sleep(30);
-    const saved = w.sessionStorage.getItem("rw:draft:REPLACE_WITH_RESTAURANT_ID");
+    // Keyed off the id in the markup rather than a hardcoded copy of it, so
+    // changing data-restaurant-id cannot silently break this test.
+    const restaurantId = doc.querySelector(".rw-widget").dataset.restaurantId;
+    const saved = w.sessionStorage.getItem("rw:draft:" + restaurantId);
     ok("draft written to sessionStorage", !!saved, String(saved));
     const parsed = JSON.parse(saved || "{}");
     ok("draft holds the name", parsed.data?.guest_name === "Anna Muster");

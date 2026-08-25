@@ -11,14 +11,39 @@ index.html    the widget markup
 styles.css    all styling (scoped under .rw-widget)
 i18n.js       all text, in German / French / Italian / English
 app.js        all behaviour
-test/         headless tests (82 checks)
+server/       the backend: API, booking overview, simulated payments
+test/         headless tests (183 checks)
 ```
 
-Open `index.html` in a browser to see it. To run the tests:
+## Running it
 
 ```
-npm install     # once, pulls in jsdom
-npm test
+npm install          # once
+npm run seed         # create the demo restaurant and its tables
+npm run dev          # start the server
+```
+
+Then open **https://localhost:3443**. Your browser will warn about the
+self-signed certificate — accept it once.
+
+| | |
+|---|---|
+| Widget | https://localhost:3443 |
+| Booking overview | https://localhost:3443/admin |
+| Overview login | `admin` / `reservehold-dev` (set `ADMIN_PASSWORD` to change) |
+
+**Why https?** The widget refuses a payment `redirect_url` that is not https,
+so an API response can never become an open redirect. The dev server therefore
+generates a self-signed certificate on first start rather than weakening that
+check. Plain http is also served on port 3000 for API work, but the payment
+redirect will not complete there.
+
+To run the tests:
+
+```
+npm test             # both suites
+npm run test:widget  # front end only, no server needed
+npm run test:api     # backend, end to end
 ```
 
 ---
@@ -48,11 +73,11 @@ error on the way to the payment provider.
 
 ---
 
-## What the backend has to provide
+## The API
 
-None of this exists yet. The widget works without it (it falls back to the
-static time list and warns the guest), but it cannot take a real booking until
-these three endpoints are live.
+All of this is implemented in `server/`. The contract is what the widget
+actually parses, so changing a shape here breaks the front end silently —
+`test/api.test.js` locks each one down.
 
 ### 1. `GET /v1/restaurants/{id}/config`
 
@@ -148,6 +173,55 @@ specially — it sends the guest back to step 1 with fresh availability:
 { "code": "slot_unavailable", "message": "…" }
 ```
 
+### The booking overview
+
+`GET /admin`, behind HTTP Basic auth. Bookings for a date with guest details
+and hold status, plus the two actions that matter:
+
+- **Cancel** — voids the hold, frees the table, charges nothing.
+- **No-show** — captures the fee. This is the only thing that takes money, so
+  it is idempotent: clicking twice still captures once.
+
+The API behind it is `GET /v1/admin/reservations?date&status`,
+`POST /v1/admin/reservations/:id/cancel` and `.../no-show`.
+
+### How the backend is built
+
+| Piece | Where | Notes |
+|---|---|---|
+| Slot generation, table fitting | `server/services/availability.js` | One booking holds one table for `turn_minutes`; tables are never combined |
+| Booking, idempotency, settlement | `server/services/booking.js` | Slot re-check, table pick and insert are one transaction |
+| Payment hold | `server/services/payments/mock.js` | `authorize` / `capture` / `void` — swap this file for a real provider |
+| Storage | `server/db.js` | SQLite via `node:sqlite`, built into Node 22+, no native build |
+
+Things worth knowing:
+
+- **The fee is recalculated server-side.** `quoted_fee_minor` is only ever
+  compared against the real figure; a mismatch is rejected.
+- **`return_url` is checked against `ALLOWED_ORIGINS`.** It arrives from the
+  browser, and reflecting it back unchecked would be an open redirect.
+- **Abandoned checkouts expire.** A table is held for `HOLD_MINUTES` while the
+  guest pays; a sweeper releases it afterwards, so a closed tab does not block
+  a table forever.
+- **Two guests, one table.** The last table is decided inside a transaction, so
+  the loser gets `slot_unavailable` and the widget sends them back to step 1.
+
+### Configuration
+
+All via environment variables, all with development defaults:
+
+| Variable | Default | |
+|---|---|---|
+| `PORT` / `HTTPS_PORT` | `3000` / `3443` | |
+| `DB_PATH` | `./data/reservehold.db` | |
+| `PUBLIC_BASE` | `https://localhost:3443` | Used to build `redirect_url` and `manage_url` |
+| `ADMIN_USER` / `ADMIN_PASSWORD` | `admin` / `reservehold-dev` | |
+| `ALLOWED_ORIGINS` | localhost ports | CORS **and** the `return_url` allowlist |
+| `HOLD_MINUTES` | `10` | How long a table is held during payment |
+
+With `NODE_ENV=production` the server refuses to start unless
+`ADMIN_PASSWORD`, `ALLOWED_ORIGINS` and `PUBLIC_BASE` are all set explicitly.
+
 ### Wiring up a payment SDK
 
 For providers that need an in-page step rather than a redirect, define this
@@ -210,44 +284,41 @@ window.RW_onRequiresAction = async (data, slotElement) => {
 These cannot be done in the front end. They need a server, an account with a
 payment provider, or a decision from you.
 
-1. **The backend itself.** All four endpoints above. Until they exist the
-   widget can show the form but cannot take a real booking.
+1. **A real payment provider.** `server/services/payments/mock.js` simulates
+   the hold — it moves no money and asks no bank. Datatrans, Payrexx and Stripe
+   all do TWINT + cards in Switzerland; each needs a merchant account. Replace
+   that one file, keeping `authorize` / `capture` / `void`, and the booking
+   logic does not change.
 
-2. **A payment provider.** Datatrans, Payrexx and Stripe all work for
-   TWINT + cards in Switzerland. The choice affects the server integration and
-   which of `requires_redirect` / `requires_action` you use. The widget
-   supports both paths already.
+2. **Hosting.** GitHub Pages serves static files only, so it cannot run this
+   server. The deployed widget stays a demo until the API runs somewhere that
+   executes Node (Render, Railway and Fly all have free tiers).
 
-3. **The cancel flow.** The widget shows a `manage_url` when the server sends
-   one, but the page behind that link, and the endpoint that actually cancels
-   a reservation and releases the hold, still have to be built.
+3. **Rate limiting and a captcha.** A public endpoint that opens payment holds
+   is an attractive target. The honeypot and timing check only stop
+   unsophisticated bots; per-IP and per-email limits, plus Cloudflare Turnstile
+   or hCaptcha, are still needed.
 
-4. **Server-side validation and rate limiting.** Everything the widget sends
-   can be forged — the honeypot and timing check only stop unsophisticated
-   bots. You need per-IP and per-email limits, and a "prove you're human"
-   check such as Cloudflare Turnstile or hCaptcha. A public endpoint that
-   creates payment holds is an attractive target.
-
-5. **Confirming the guest's email and phone are real.** Right now anyone can
+4. **Confirming the guest's email and phone are real.** Right now anyone can
    type a made-up address. The usual answer is a one-time code by SMS, or
    treating the booking as provisional until the confirmation email is opened.
 
-6. **The actual policy texts.** `data-policy-url` and `data-privacy-url` are
-   empty. Charging someone CHF 30 for a policy they were never shown is a weak
-   position, and collecting name, email and phone without a privacy notice
-   does not meet the Swiss revDSG or the GDPR.
+5. **The actual policy texts.** The demo restaurant points at
+   `example.ch` placeholders. Charging someone CHF 30 for a policy they were
+   never shown is a weak position, and collecting name, email and phone
+   without a privacy notice does not meet the Swiss revDSG or the GDPR.
 
-7. **Check the "released automatically" wording with your provider.** Card
+6. **Check the "released automatically" wording with your provider.** Card
    pre-authorisations typically expire in about a week and the exact behaviour
    depends on the issuing bank; TWINT works differently again. The text
    deliberately no longer promises a specific number of hours — put the real
    figure in only once your provider confirms it in writing.
 
-8. **Timezone handling.** The widget works in the guest's local time. If
-   someone books from abroad, their browser's timezone is not the restaurant's.
-   The server should store and confirm times in the restaurant's timezone.
+7. **Timezone handling.** The widget works in the guest's local time, and the
+   server stores what it was given. A `timezone` column exists on
+   `restaurants` but nothing reads it yet, so a guest booking from abroad can
+   still pick a time that means something different in Zurich.
 
-9. **Overbooking policy.** Even with an availability endpoint, two people can
-   submit the last table within the same second. The server needs to hold the
-   slot for the few minutes it takes to complete payment, and release it if
-   the payment fails.
+8. **Tables for large groups.** One booking takes one table; tables are never
+   combined. `max_party` therefore has to be the largest single table — six in
+   the demo data. Anything bigger needs a phone call.

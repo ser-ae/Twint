@@ -1,0 +1,318 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Bookings — ReserveHold</title>
+    <style>
+      :root {
+        --ink: #18181b;
+        --ink-soft: #71717a;
+        --line: #e4e4e7;
+        --bg: #faf9f7;
+        --card: #ffffff;
+        --accent: #d7263d;
+        --ok: #15803d;
+        --warn: #b45309;
+      }
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        padding: 28px 20px 60px;
+        background: var(--bg);
+        color: var(--ink);
+        font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+      }
+      .wrap { max-width: 1080px; margin: 0 auto; }
+      header { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; }
+      h1 { font-size: 22px; margin: 0; letter-spacing: -0.01em; }
+      .sub { color: var(--ink-soft); font-size: 14px; }
+
+      .controls {
+        display: flex; gap: 10px; align-items: flex-end; flex-wrap: wrap;
+        margin: 22px 0 18px;
+      }
+      label { display: block; font-size: 12px; color: var(--ink-soft); margin-bottom: 5px; }
+      input, select, button {
+        font: inherit; padding: 8px 11px; border: 1px solid var(--line);
+        border-radius: 8px; background: var(--card); color: inherit;
+      }
+      button { cursor: pointer; }
+      button.primary { background: var(--ink); color: #fff; border-color: var(--ink); }
+
+      .tiles { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 18px; }
+      .tile {
+        background: var(--card); border: 1px solid var(--line); border-radius: 10px;
+        padding: 12px 16px; min-width: 108px;
+      }
+      .tile .n { font-size: 22px; font-weight: 700; line-height: 1.1; }
+      .tile .k { font-size: 11px; color: var(--ink-soft); text-transform: uppercase;
+                 letter-spacing: 0.07em; margin-top: 3px; }
+
+      .table-scroll { overflow-x: auto; border: 1px solid var(--line); border-radius: 12px; }
+      table { width: 100%; border-collapse: collapse; background: var(--card); font-size: 14px; }
+      th, td { padding: 11px 13px; text-align: left; border-bottom: 1px solid var(--line); white-space: nowrap; }
+      th { font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em;
+           color: var(--ink-soft); font-weight: 600; }
+      tr:last-child td { border-bottom: 0; }
+      td.guest { white-space: normal; min-width: 180px; }
+      .muted { color: var(--ink-soft); font-size: 12px; }
+
+      .pill {
+        display: inline-block; font-size: 11px; padding: 3px 9px; border-radius: 999px;
+        text-transform: uppercase; letter-spacing: 0.05em; font-weight: 600;
+        background: #f4f4f5; color: #3f3f46;
+      }
+      .pill.confirmed { background: #dcfce7; color: var(--ok); }
+      .pill.pending_payment { background: #fef3c7; color: var(--warn); }
+      .pill.no_show { background: #fee2e2; color: var(--accent); }
+      .pill.cancelled, .pill.expired, .pill.failed { background: #f4f4f5; color: var(--ink-soft); }
+
+      .actions { display: flex; gap: 6px; }
+      .actions button { padding: 5px 10px; font-size: 12px; }
+      .danger { color: var(--accent); border-color: #f3c6cc; }
+
+      .empty { padding: 40px; text-align: center; color: var(--ink-soft); }
+      .err { background: #fee2e2; color: #991b1b; padding: 10px 14px;
+             border-radius: 8px; margin-bottom: 14px; font-size: 14px; }
+      [hidden] { display: none !important; }
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <header>
+        <h1>Bookings</h1>
+        <span class="sub" id="restaurant-name"></span>
+      </header>
+
+      <div class="controls">
+        <div>
+          <label for="date">Date</label>
+          <input type="date" id="date" />
+        </div>
+        <div>
+          <label for="status">Status</label>
+          <select id="status">
+            <option value="">All</option>
+            <option value="confirmed">Confirmed</option>
+            <option value="pending_payment">Awaiting payment</option>
+            <option value="no_show">No-show</option>
+            <option value="cancelled">Cancelled</option>
+            <option value="expired">Expired</option>
+            <option value="failed">Failed</option>
+          </select>
+        </div>
+        <button class="primary" id="reload">Refresh</button>
+        <button id="today">Today</button>
+        <button id="all-dates">All dates</button>
+      </div>
+
+      <p class="err" id="error" hidden></p>
+
+      <div class="tiles" id="tiles"></div>
+
+      <div class="table-scroll">
+        <table>
+          <thead>
+            <tr>
+              <th>Time</th>
+              <th>Party</th>
+              <th>Table</th>
+              <th>Guest</th>
+              <th>Contact</th>
+              <th>Method</th>
+              <th>Status</th>
+              <th>Hold</th>
+              <th>Reference</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody id="rows"></tbody>
+        </table>
+        <div class="empty" id="empty" hidden>No bookings for this selection.</div>
+      </div>
+    </div>
+
+    <script>
+      (function () {
+        "use strict";
+        var $ = function (s) { return document.querySelector(s); };
+        var dateInput = $("#date");
+        var statusInput = $("#status");
+        var rows = $("#rows");
+        var tiles = $("#tiles");
+        var empty = $("#empty");
+        var errorBox = $("#error");
+
+        function iso(d) {
+          var p = function (n) { return String(n).padStart(2, "0"); };
+          return d.getFullYear() + "-" + p(d.getMonth() + 1) + "-" + p(d.getDate());
+        }
+        dateInput.value = iso(new Date());
+
+        function showError(message) {
+          errorBox.textContent = message || "";
+          errorBox.hidden = !message;
+        }
+
+        function money(minor, currency) {
+          try {
+            return new Intl.NumberFormat("de-CH", {
+              style: "currency", currency: currency || "CHF"
+            }).format(minor / 100);
+          } catch (e) {
+            return (currency || "CHF") + " " + (minor / 100).toFixed(2);
+          }
+        }
+
+        function tile(n, k) {
+          var el = document.createElement("div");
+          el.className = "tile";
+          var num = document.createElement("div");
+          num.className = "n";
+          num.textContent = n;
+          var key = document.createElement("div");
+          key.className = "k";
+          key.textContent = k;
+          el.appendChild(num);
+          el.appendChild(key);
+          return el;
+        }
+
+        function cell(row, text, className) {
+          var td = document.createElement("td");
+          if (className) td.className = className;
+          td.textContent = text == null ? "" : String(text);
+          row.appendChild(td);
+          return td;
+        }
+
+        async function act(id, what, confirmText) {
+          if (!window.confirm(confirmText)) return;
+          try {
+            var res = await fetch("/v1/admin/reservations/" + encodeURIComponent(id) + "/" + what, {
+              method: "POST",
+              headers: { Accept: "application/json" }
+            });
+            var data = await res.json().catch(function () { return {}; });
+            if (!res.ok) throw new Error(data.message || ("HTTP " + res.status));
+            showError("");
+            load();
+          } catch (err) {
+            showError(err.message);
+          }
+        }
+
+        function render(data) {
+          rows.textContent = "";
+          tiles.textContent = "";
+
+          var t = data.totals || {};
+          tiles.appendChild(tile(t.count || 0, "Bookings"));
+          tiles.appendChild(tile(t.confirmed || 0, "Confirmed"));
+          tiles.appendChild(tile(t.covers || 0, "Covers"));
+          tiles.appendChild(tile(t.no_shows || 0, "No-shows"));
+
+          var list = data.reservations || [];
+          empty.hidden = list.length > 0;
+
+          list.forEach(function (r) {
+            var tr = document.createElement("tr");
+            cell(tr, r.time);
+            cell(tr, r.party_size);
+            cell(tr, r.table || "—");
+
+            var guest = cell(tr, "", "guest");
+            guest.textContent = r.guest_name;
+            if (r.notes) {
+              var note = document.createElement("div");
+              note.className = "muted";
+              note.textContent = r.notes;
+              guest.appendChild(note);
+            }
+
+            var contact = cell(tr, "", "guest");
+            contact.textContent = r.guest_phone;
+            var mail = document.createElement("div");
+            mail.className = "muted";
+            mail.textContent = r.guest_email;
+            contact.appendChild(mail);
+
+            cell(tr, r.payment_method);
+
+            var st = document.createElement("td");
+            var pill = document.createElement("span");
+            pill.className = "pill " + r.status;
+            pill.textContent = r.status.replace(/_/g, " ");
+            st.appendChild(pill);
+            tr.appendChild(st);
+
+            var hold = cell(tr, r.payment_status || "—");
+            if (r.payment_status === "captured") {
+              hold.textContent = "captured " + money(r.fee_minor, r.currency);
+            }
+
+            cell(tr, r.reference);
+
+            var actions = document.createElement("td");
+            actions.className = "actions";
+            if (r.status === "confirmed") {
+              var noShow = document.createElement("button");
+              noShow.className = "danger";
+              noShow.textContent = "No-show";
+              noShow.addEventListener("click", function () {
+                act(r.id, "no-show",
+                  "Charge " + money(r.fee_minor, r.currency) + " to " + r.guest_name +
+                  " for not showing up?\n\nThis takes the money from the hold.");
+              });
+              actions.appendChild(noShow);
+
+              var cancelBtn = document.createElement("button");
+              cancelBtn.textContent = "Cancel";
+              cancelBtn.addEventListener("click", function () {
+                act(r.id, "cancel",
+                  "Cancel " + r.guest_name + "'s booking and release the hold?");
+              });
+              actions.appendChild(cancelBtn);
+            }
+            tr.appendChild(actions);
+
+            rows.appendChild(tr);
+          });
+        }
+
+        async function load() {
+          var params = new URLSearchParams();
+          if (dateInput.value) params.set("date", dateInput.value);
+          if (statusInput.value) params.set("status", statusInput.value);
+          try {
+            var res = await fetch("/v1/admin/reservations?" + params.toString(), {
+              headers: { Accept: "application/json" }
+            });
+            if (res.status === 401) throw new Error("Not signed in — reload and enter the admin password.");
+            var data = await res.json();
+            if (!res.ok) throw new Error(data.message || ("HTTP " + res.status));
+            showError("");
+            render(data);
+          } catch (err) {
+            showError(err.message);
+          }
+        }
+
+        $("#reload").addEventListener("click", load);
+        dateInput.addEventListener("change", load);
+        statusInput.addEventListener("change", load);
+        $("#today").addEventListener("click", function () {
+          dateInput.value = iso(new Date());
+          load();
+        });
+        $("#all-dates").addEventListener("click", function () {
+          dateInput.value = "";
+          load();
+        });
+
+        load();
+      })();
+    </script>
+  </body>
+</html>
